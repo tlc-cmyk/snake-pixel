@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Pixel Snake</title>
+<title>Pixel Dragon</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
@@ -16,8 +16,8 @@
     color: #e8e0c8;
   }
   #wrap {
-    border: 3px solid #6b4cff;
-    box-shadow: 0 0 0 2px #2a1a4a, 0 0 24px rgba(107, 76, 255, 0.35);
+    border: 3px solid #c44a2a;
+    box-shadow: 0 0 0 2px #4a1a10, 0 0 24px rgba(255, 100, 40, 0.35);
     line-height: 0;
   }
   canvas {
@@ -39,25 +39,30 @@
   ctx.imageSmoothingEnabled = false;
 
   const GRID = 15;
-  const CELLS = 16; // 240 / 15
+  const CELLS = 16;
   const TICK_MS = 110;
 
   const COL = {
     bg: "#1a1430",
     grid: "#221a3c",
-    snake: "#5dff9a",
-    snakeHead: "#b8ffd0",
-    snakeEye: "#0d0b14",
-    food: "#ffd24a",
-    foodEdge: "#ff8c2a",
-    wall: "#3a2a5c",
+    body: "#e03a2f",
+    bodyDark: "#9a1e18",
+    bodyLight: "#ff6b4a",
+    scale: "#ffd24a",
+    mane: "#ff8c2a",
+    horn: "#f5efd8",
+    eye: "#0d0b14",
+    eyeGlow: "#ffe566",
+    tongue: "#ff4a7a",
+    food: "#5dff9a",
+    foodEdge: "#2a8a55",
     text: "#f5efd8",
     muted: "#a89cc0",
     title: "#ffd24a",
     danger: "#ff6b7a",
   };
 
-  let state = "title"; // title | play | over
+  let state = "title";
   let snake, dir, nextDir, food, score, tickAcc, lastTs, grow;
 
   function reset() {
@@ -66,6 +71,7 @@
       { x: mid - 1, y: mid },
       { x: mid - 2, y: mid },
       { x: mid - 3, y: mid },
+      { x: mid - 4, y: mid },
     ];
     dir = { x: 1, y: 0 };
     nextDir = { ...dir };
@@ -86,7 +92,6 @@
 
   function setDir(nx, ny) {
     if (state !== "play") return;
-    // no 180°
     if (nx === -dir.x && ny === -dir.y) return;
     nextDir = { x: nx, y: ny };
   }
@@ -143,45 +148,134 @@
     return n * GRID;
   }
 
-  function drawCell(x, y, fill, edge) {
-    ctx.fillStyle = fill;
-    ctx.fillRect(px(x), px(y), GRID, GRID);
-    if (edge) {
-      ctx.fillStyle = edge;
-      ctx.fillRect(px(x), px(y), GRID, 1);
-      ctx.fillRect(px(x), px(y), 1, GRID);
+  function drawDragonHead(s) {
+    const x = px(s.x);
+    const y = px(s.y);
+    // snout / head block
+    ctx.fillStyle = COL.bodyLight;
+    ctx.fillRect(x + 1, y + 2, 13, 11);
+    ctx.fillStyle = COL.body;
+    ctx.fillRect(x + 2, y + 3, 11, 9);
+
+    // horns
+    ctx.fillStyle = COL.horn;
+    if (dir.x === 1) {
+      ctx.fillRect(x + 4, y, 2, 3);
+      ctx.fillRect(x + 9, y, 2, 3);
+      ctx.fillRect(x + 3, y - 1, 2, 2);
+      ctx.fillRect(x + 10, y - 1, 2, 2);
+    } else if (dir.x === -1) {
+      ctx.fillRect(x + 4, y, 2, 3);
+      ctx.fillRect(x + 9, y, 2, 3);
+      ctx.fillRect(x + 3, y - 1, 2, 2);
+      ctx.fillRect(x + 10, y - 1, 2, 2);
+    } else if (dir.y === -1) {
+      ctx.fillRect(x, y + 3, 3, 2);
+      ctx.fillRect(x, y + 8, 3, 2);
+      ctx.fillRect(x - 1, y + 2, 2, 2);
+      ctx.fillRect(x - 1, y + 9, 2, 2);
+    } else {
+      ctx.fillRect(x + 12, y + 3, 3, 2);
+      ctx.fillRect(x + 12, y + 8, 3, 2);
+      ctx.fillRect(x + 14, y + 2, 2, 2);
+      ctx.fillRect(x + 14, y + 9, 2, 2);
+    }
+
+    // mane / whiskers
+    ctx.fillStyle = COL.mane;
+    if (dir.x === 1) {
+      ctx.fillRect(x - 1, y + 4, 3, 2);
+      ctx.fillRect(x - 1, y + 9, 3, 2);
+      ctx.fillRect(x + 12, y + 6, 3, 2); // snout tip
+    } else if (dir.x === -1) {
+      ctx.fillRect(x + 13, y + 4, 3, 2);
+      ctx.fillRect(x + 13, y + 9, 3, 2);
+      ctx.fillRect(x, y + 6, 3, 2);
+    } else if (dir.y === -1) {
+      ctx.fillRect(x + 4, y + 13, 2, 3);
+      ctx.fillRect(x + 9, y + 13, 2, 3);
+      ctx.fillRect(x + 6, y, 2, 3);
+    } else {
+      ctx.fillRect(x + 4, y - 1, 2, 3);
+      ctx.fillRect(x + 9, y - 1, 2, 3);
+      ctx.fillRect(x + 6, y + 12, 2, 3);
+    }
+
+    // eyes
+    ctx.fillStyle = COL.eyeGlow;
+    if (dir.x !== 0) {
+      const ox = dir.x > 0 ? 8 : 4;
+      ctx.fillRect(x + ox, y + 4, 3, 3);
+      ctx.fillRect(x + ox, y + 9, 3, 3);
+      ctx.fillStyle = COL.eye;
+      ctx.fillRect(x + ox + 1, y + 5, 2, 2);
+      ctx.fillRect(x + ox + 1, y + 10, 2, 2);
+    } else {
+      const oy = dir.y > 0 ? 8 : 4;
+      ctx.fillRect(x + 4, y + oy, 3, 3);
+      ctx.fillRect(x + 9, y + oy, 3, 3);
+      ctx.fillStyle = COL.eye;
+      ctx.fillRect(x + 5, y + oy + 1, 2, 2);
+      ctx.fillRect(x + 10, y + oy + 1, 2, 2);
+    }
+
+    // tongue
+    ctx.fillStyle = COL.tongue;
+    if (dir.x === 1) ctx.fillRect(x + 14, y + 7, 2, 1);
+    else if (dir.x === -1) ctx.fillRect(x - 1, y + 7, 2, 1);
+    else if (dir.y === -1) ctx.fillRect(x + 7, y - 1, 1, 2);
+    else ctx.fillRect(x + 7, y + 14, 1, 2);
+  }
+
+  function drawBodySeg(s, i) {
+    const x = px(s.x);
+    const y = px(s.y);
+    const isTail = i === snake.length - 1;
+    if (isTail) {
+      // pointed tail tip
+      ctx.fillStyle = COL.scale;
+      ctx.fillRect(x + 5, y + 5, 5, 5);
+      ctx.fillStyle = COL.body;
+      ctx.fillRect(x + 6, y + 6, 3, 3);
+      ctx.fillStyle = COL.mane;
+      ctx.fillRect(x + 7, y + 2, 1, 3);
+      ctx.fillRect(x + 7, y + 10, 1, 3);
+      ctx.fillRect(x + 2, y + 7, 3, 1);
+      ctx.fillRect(x + 10, y + 7, 3, 1);
+      return;
+    }
+    // scaly body — alternate gold ridge
+    ctx.fillStyle = COL.bodyDark;
+    ctx.fillRect(x + 1, y + 1, 13, 13);
+    ctx.fillStyle = i % 2 === 0 ? COL.body : COL.bodyLight;
+    ctx.fillRect(x + 2, y + 2, 11, 11);
+    ctx.fillStyle = COL.scale;
+    ctx.fillRect(x + 5, y + 3, 5, 2);
+    ctx.fillRect(x + 6, y + 6, 3, 3);
+    // small mane tufts on sides for longer look
+    if (i % 3 === 1) {
+      ctx.fillStyle = COL.mane;
+      ctx.fillRect(x + 1, y + 6, 2, 2);
+      ctx.fillRect(x + 12, y + 6, 2, 2);
     }
   }
 
-  function drawSnake() {
+  function drawDragon() {
     for (let i = snake.length - 1; i >= 0; i--) {
-      const s = snake[i];
-      const isHead = i === 0;
-      drawCell(s.x, s.y, isHead ? COL.snakeHead : COL.snake, "#2a8a55");
-      if (isHead) {
-        // eyes
-        ctx.fillStyle = COL.snakeEye;
-        const ox = dir.x !== 0 ? (dir.x > 0 ? 9 : 2) : 4;
-        const oy = dir.y !== 0 ? (dir.y > 0 ? 9 : 2) : 4;
-        if (dir.x !== 0) {
-          ctx.fillRect(px(s.x) + ox, px(s.y) + 3, 2, 2);
-          ctx.fillRect(px(s.x) + ox, px(s.y) + 10, 2, 2);
-        } else {
-          ctx.fillRect(px(s.x) + 3, px(s.y) + oy, 2, 2);
-          ctx.fillRect(px(s.x) + 10, px(s.y) + oy, 2, 2);
-        }
-      }
+      if (i === 0) drawDragonHead(snake[i]);
+      else drawBodySeg(snake[i], i);
     }
   }
 
   function drawFood() {
     const x = px(food.x);
     const y = px(food.y);
+    // pearl / orb for the dragon
     ctx.fillStyle = COL.foodEdge;
-    ctx.fillRect(x + 2, y + 2, 11, 11);
+    ctx.fillRect(x + 3, y + 3, 9, 9);
     ctx.fillStyle = COL.food;
     ctx.fillRect(x + 4, y + 4, 7, 7);
-    ctx.fillStyle = "#fff6c0";
+    ctx.fillStyle = "#e8ffe8";
     ctx.fillRect(x + 5, y + 5, 2, 2);
   }
 
@@ -218,29 +312,45 @@
     });
   }
 
+  function drawTitlePreview() {
+    const preview = [
+      { x: 6, y: 12 },
+      { x: 5, y: 12 },
+      { x: 4, y: 12 },
+      { x: 3, y: 12 },
+      { x: 2, y: 12 },
+    ];
+    const saved = snake;
+    const savedDir = dir;
+    snake = preview;
+    dir = { x: 1, y: 0 };
+    drawDragon();
+    snake = saved;
+    dir = savedDir;
+    // pearl
+    const fx = px(9);
+    const fy = px(12);
+    ctx.fillStyle = COL.foodEdge;
+    ctx.fillRect(fx + 3, fy + 3, 9, 9);
+    ctx.fillStyle = COL.food;
+    ctx.fillRect(fx + 4, fy + 4, 7, 7);
+  }
+
   function draw() {
     drawBg();
     if (state === "title") {
-      // tiny idle snake preview
-      const preview = [
-        { x: 5, y: 12 },
-        { x: 4, y: 12 },
-        { x: 3, y: 12 },
-        { x: 2, y: 12 },
-      ];
-      preview.forEach((s, i) => drawCell(s.x, s.y, i === 0 ? COL.snakeHead : COL.snake));
-      drawCell(8, 12, COL.food, COL.foodEdge);
+      drawTitlePreview();
       drawCenterText([
-        "PIXEL SNAKE",
-        "Arrow keys to steer",
-        "Eat food · grow · avoid walls & self",
+        "PIXEL DRAGON",
+        "Arrow keys to steer the dragon",
+        "Eat pearls · grow · avoid walls & self",
         "PRESS SPACE TO START",
       ]);
       return;
     }
 
     drawFood();
-    drawSnake();
+    drawDragon();
     drawScore();
 
     if (state === "over") {
