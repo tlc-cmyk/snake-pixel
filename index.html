@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pixel Snake</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: #0d0b14;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Courier New", monospace;
+    color: #e8e0c8;
+  }
+  #wrap {
+    border: 3px solid #6b4cff;
+    box-shadow: 0 0 0 2px #2a1a4a, 0 0 24px rgba(107, 76, 255, 0.35);
+    line-height: 0;
+  }
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    width: 480px;
+    height: 480px;
+    background: #1a1430;
+  }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" width="240" height="240"></canvas></div>
+<script>
+(() => {
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+
+  const GRID = 15;
+  const CELLS = 16; // 240 / 15
+  const TICK_MS = 110;
+
+  const COL = {
+    bg: "#1a1430",
+    grid: "#221a3c",
+    snake: "#5dff9a",
+    snakeHead: "#b8ffd0",
+    snakeEye: "#0d0b14",
+    food: "#ffd24a",
+    foodEdge: "#ff8c2a",
+    wall: "#3a2a5c",
+    text: "#f5efd8",
+    muted: "#a89cc0",
+    title: "#ffd24a",
+    danger: "#ff6b7a",
+  };
+
+  let state = "title"; // title | play | over
+  let snake, dir, nextDir, food, score, tickAcc, lastTs, grow;
+
+  function reset() {
+    const mid = Math.floor(CELLS / 2);
+    snake = [
+      { x: mid - 1, y: mid },
+      { x: mid - 2, y: mid },
+      { x: mid - 3, y: mid },
+    ];
+    dir = { x: 1, y: 0 };
+    nextDir = { ...dir };
+    score = 0;
+    grow = 0;
+    placeFood();
+  }
+
+  function placeFood() {
+    const taken = new Set(snake.map((s) => s.x + "," + s.y));
+    let x, y;
+    do {
+      x = (Math.random() * CELLS) | 0;
+      y = (Math.random() * CELLS) | 0;
+    } while (taken.has(x + "," + y));
+    food = { x, y };
+  }
+
+  function setDir(nx, ny) {
+    if (state !== "play") return;
+    // no 180°
+    if (nx === -dir.x && ny === -dir.y) return;
+    nextDir = { x: nx, y: ny };
+  }
+
+  window.addEventListener("keydown", (e) => {
+    const k = e.key;
+    if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "Enter"].includes(k)) {
+      e.preventDefault();
+    }
+    if (state === "title" && (k === " " || k === "Enter")) {
+      reset();
+      state = "play";
+      return;
+    }
+    if (state === "over" && (k === " " || k === "Enter" || k === "r" || k === "R")) {
+      reset();
+      state = "play";
+      return;
+    }
+    if (k === "ArrowUp" || k === "w" || k === "W") setDir(0, -1);
+    else if (k === "ArrowDown" || k === "s" || k === "S") setDir(0, 1);
+    else if (k === "ArrowLeft" || k === "a" || k === "A") setDir(-1, 0);
+    else if (k === "ArrowRight" || k === "d" || k === "D") setDir(1, 0);
+  });
+
+  function step() {
+    dir = nextDir;
+    const head = snake[0];
+    const nx = head.x + dir.x;
+    const ny = head.y + dir.y;
+
+    if (nx < 0 || ny < 0 || nx >= CELLS || ny >= CELLS) {
+      state = "over";
+      return;
+    }
+    for (let i = 0; i < snake.length; i++) {
+      if (snake[i].x === nx && snake[i].y === ny) {
+        state = "over";
+        return;
+      }
+    }
+
+    snake.unshift({ x: nx, y: ny });
+    if (nx === food.x && ny === food.y) {
+      score += 10;
+      grow += 1;
+      placeFood();
+    }
+    if (grow > 0) grow--;
+    else snake.pop();
+  }
+
+  function px(n) {
+    return n * GRID;
+  }
+
+  function drawCell(x, y, fill, edge) {
+    ctx.fillStyle = fill;
+    ctx.fillRect(px(x), px(y), GRID, GRID);
+    if (edge) {
+      ctx.fillStyle = edge;
+      ctx.fillRect(px(x), px(y), GRID, 1);
+      ctx.fillRect(px(x), px(y), 1, GRID);
+    }
+  }
+
+  function drawSnake() {
+    for (let i = snake.length - 1; i >= 0; i--) {
+      const s = snake[i];
+      const isHead = i === 0;
+      drawCell(s.x, s.y, isHead ? COL.snakeHead : COL.snake, "#2a8a55");
+      if (isHead) {
+        // eyes
+        ctx.fillStyle = COL.snakeEye;
+        const ox = dir.x !== 0 ? (dir.x > 0 ? 9 : 2) : 4;
+        const oy = dir.y !== 0 ? (dir.y > 0 ? 9 : 2) : 4;
+        if (dir.x !== 0) {
+          ctx.fillRect(px(s.x) + ox, px(s.y) + 3, 2, 2);
+          ctx.fillRect(px(s.x) + ox, px(s.y) + 10, 2, 2);
+        } else {
+          ctx.fillRect(px(s.x) + 3, px(s.y) + oy, 2, 2);
+          ctx.fillRect(px(s.x) + 10, px(s.y) + oy, 2, 2);
+        }
+      }
+    }
+  }
+
+  function drawFood() {
+    const x = px(food.x);
+    const y = px(food.y);
+    ctx.fillStyle = COL.foodEdge;
+    ctx.fillRect(x + 2, y + 2, 11, 11);
+    ctx.fillStyle = COL.food;
+    ctx.fillRect(x + 4, y + 4, 7, 7);
+    ctx.fillStyle = "#fff6c0";
+    ctx.fillRect(x + 5, y + 5, 2, 2);
+  }
+
+  function drawBg() {
+    ctx.fillStyle = COL.bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = COL.grid;
+    for (let i = 0; i <= CELLS; i++) {
+      ctx.fillRect(i * GRID, 0, 1, canvas.height);
+      ctx.fillRect(0, i * GRID, canvas.width, 1);
+    }
+  }
+
+  function drawScore() {
+    ctx.fillStyle = COL.text;
+    ctx.font = "10px monospace";
+    ctx.textAlign = "left";
+    ctx.fillText("SCORE " + score, 6, 12);
+  }
+
+  function drawCenterText(lines, titleColor) {
+    ctx.textAlign = "center";
+    let y = 88;
+    lines.forEach((line, i) => {
+      if (i === 0) {
+        ctx.fillStyle = titleColor || COL.title;
+        ctx.font = "bold 18px monospace";
+      } else {
+        ctx.fillStyle = COL.muted;
+        ctx.font = "10px monospace";
+      }
+      ctx.fillText(line, canvas.width / 2, y);
+      y += i === 0 ? 22 : 14;
+    });
+  }
+
+  function draw() {
+    drawBg();
+    if (state === "title") {
+      // tiny idle snake preview
+      const preview = [
+        { x: 5, y: 12 },
+        { x: 4, y: 12 },
+        { x: 3, y: 12 },
+        { x: 2, y: 12 },
+      ];
+      preview.forEach((s, i) => drawCell(s.x, s.y, i === 0 ? COL.snakeHead : COL.snake));
+      drawCell(8, 12, COL.food, COL.foodEdge);
+      drawCenterText([
+        "PIXEL SNAKE",
+        "Arrow keys to steer",
+        "Eat food · grow · avoid walls & self",
+        "PRESS SPACE TO START",
+      ]);
+      return;
+    }
+
+    drawFood();
+    drawSnake();
+    drawScore();
+
+    if (state === "over") {
+      ctx.fillStyle = "rgba(13, 11, 20, 0.72)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      drawCenterText(
+        ["GAME OVER", "Score " + score, "SPACE / ENTER / R to retry"],
+        COL.danger
+      );
+    }
+  }
+
+  function loop(ts) {
+    if (!lastTs) lastTs = ts;
+    const dt = ts - lastTs;
+    lastTs = ts;
+    if (state === "play") {
+      tickAcc = (tickAcc || 0) + dt;
+      while (tickAcc >= TICK_MS) {
+        tickAcc -= TICK_MS;
+        if (state === "play") step();
+      }
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  reset();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
